@@ -58,6 +58,7 @@
         "system_error": "cpp",
         "typeinfo": "cpp",
         "unordered_map": "cpp",
-        "algorithm": "cpp"
+        "algorithm": "cpp",
+        "deque": "cpp"
     }
 }

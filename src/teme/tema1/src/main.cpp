@@ -13,8 +13,6 @@ using namespace fa;
 
 int main()
 {
-    DFA dfa;
-
     int testNumber, finiteAutomataImplementation;
 
     cout << "For this program we consider the following: " << endl;

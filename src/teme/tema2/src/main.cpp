@@ -5,140 +5,48 @@
 using namespace std;
 using namespace fa;
 
-#ifdef _WIN32
-#define CLEAR_COMMAND "cls"
-#else
-#define CLEAR_COMMAND "clear"
-#endif
-
 int main()
 {
-    DFA dfa;
+    LambdaNFA nfa;
+    ifstream in("tests/1.txt");
 
-    int testNumber, finiteAutomataImplementation;
+    in >> nfa;
+    DFA dfa = nfa.turnDeterministic();
 
-    cout << "For this program we consider the following: " << endl;
-    cout << "1 - States are integers, transitions are characters." << endl;
-    cout << "2 - Lambda character is '0' and lambda string is '-'" << endl;
-    cout << endl;
+    cout << "NFA: " << nfa << endl;
+    cout << "DFA: " << dfa << endl;
 
-    while (true)
+    int inputCount;
+    string input;
+    in >> inputCount;
+    for (int index = 0; index < inputCount; index++)
     {
-        cout << "Please select the type of finite automata implementation:" << endl;
-        cout << "1 - DFA" << endl;
-        cout << "2 - NFA" << endl;
-        cout << "3 - Lambda NFA" << endl;
-        cin >> finiteAutomataImplementation;
-        if (finiteAutomataImplementation >= 1 && finiteAutomataImplementation <= 3)
-            break;
-        else
+        in >> input;
+
+        vector<vector<int>> solutions = nfa.evaluateStringWithPath(input);
+        if (!solutions.empty())
         {
-            system(CLEAR_COMMAND);
-            cout << "Please enter a valid finite automata implementation" << endl;
-        }
-    }
-    cout << endl;
-
-    while (true)
-    {
-        cout << "Please select the test number (1-5): " << endl;
-        cin >> testNumber;
-        if (testNumber >= 1 && testNumber <= 5)
-            break;
-        else
-        {
-            system(CLEAR_COMMAND);
-            cout << "Please enter a valid test number" << endl;
-        }
-    }
-    cout << endl;
-
-    ifstream in("./tests/" + to_string(testNumber) + ".txt");
-
-    switch (finiteAutomataImplementation)
-    {
-    case 1:
-    {
-        DFA automata;
-        in >> automata;
-
-        int nrWords;
-        string word;
-        in >> nrWords;
-        for (int index = 0; index < nrWords; index++)
-        {
-            in >> word;
-            vector<int> solution = automata.evaluateStringWithPath(word);
-            if (!solution.empty())
+            cout << "NFA - VALID" << endl;
+            for (const auto &solution : solutions)
             {
-                cout << "VALID" << endl;
-                for (auto value : solution)
-                    cout << value << " ";
+                for (auto state : solution)
+                    cout << state << " ";
                 cout << endl;
             }
-            else
-                cout << "INVALID" << endl;
         }
-        break;
-    }
+        else
+            cout << "NFA - INVALID" << endl;
 
-    case 2:
-    {
-        NFA automata;
-        in >> automata;
-
-        int nrWords;
-        string word;
-        in >> nrWords;
-        for (int index = 0; index < nrWords; index++)
+        vector<int> solution = dfa.evaluateStringWithPath(input);
+        if (!solution.empty())
         {
-            in >> word;
-            vector<int> solution = automata.evaluateStringWithPath(word);
-            if (!solution.empty())
-            {
-                cout << "VALID" << endl;
-                for (auto value : solution)
-                    cout << value << " ";
-                cout << endl;
-            }
-            else
-                cout << "INVALID" << endl;
+            cout << "DFA - VALID" << endl;
+            for (auto state : solution)
+                cout << state << " ";
+            cout << endl;
         }
-        break;
+        else
+            cout << "DFA - INVALID" << endl;
     }
-
-    case 3:
-    {
-        LambdaNFA lnfa;
-        in >> lnfa;
-
-        int nrWords;
-        string word;
-
-        in >> nrWords;
-        for (int index = 0; index < nrWords; index++)
-        {
-            in >> word;
-            vector<vector<int>> solutions = lnfa.evaluateStringWithPath(word);
-            if (!solutions.empty())
-            {
-                cout << "VALID" << endl;
-                for (const auto &solution : solutions)
-                {
-                    for (auto state : solution)
-                        cout << state << " ";
-                    cout << endl;
-                }
-            }
-            else
-                cout << "INVALID" << endl;
-        }
-        break;
-    }
-
-    default:
-        break;
-    }
-
     return 0;
 }
