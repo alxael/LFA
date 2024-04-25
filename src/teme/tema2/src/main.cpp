@@ -7,21 +7,29 @@ using namespace fa;
 
 int main()
 {
-    LambdaNFA nfa;
-    ifstream in("tests/1.txt");
+    DFA dfa;
+    NFA nfa;
 
-    in >> nfa;
-    DFA dfa = nfa.turnDeterministic();
+    ifstream din("tests/4.txt");
+    din >> dfa;
 
-    cout << "NFA: " << nfa << endl;
-    cout << "DFA: " << dfa << endl;
+    ifstream nin("tests/1.txt");
+    nin >> nfa;
+    DFA converted = nfa.turnDeterministic();
+
+    cout << "Task 1: " << endl;
+    cout << "NFA: " << endl
+         << nfa << endl;
+    dfa.minimize();
+    cout << "Converted DFA: " << endl
+         << converted << endl;
 
     int inputCount;
     string input;
-    in >> inputCount;
+    nin >> inputCount;
     for (int index = 0; index < inputCount; index++)
     {
-        in >> input;
+        nin >> input;
 
         vector<vector<int>> solutions = nfa.evaluateStringWithPath(input);
         if (!solutions.empty())
@@ -37,7 +45,7 @@ int main()
         else
             cout << "NFA - INVALID" << endl;
 
-        vector<int> solution = dfa.evaluateStringWithPath(input);
+        vector<int> solution = converted.evaluateStringWithPath(input);
         if (!solution.empty())
         {
             cout << "DFA - VALID" << endl;
@@ -47,6 +55,14 @@ int main()
         }
         else
             cout << "DFA - INVALID" << endl;
+        cout << endl;
     }
+
+    cout << "Task 2: " << endl;
+    cout << "DFA: " << endl
+         << dfa << endl;
+    dfa.minimize();
+    cout << "Minimized DFA: " << endl
+         << dfa << endl;
     return 0;
 }

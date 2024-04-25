@@ -2,6 +2,7 @@
 #include <map>
 #include <queue>
 #include <iostream>
+#include <algorithm>
 
 using namespace std;
 
@@ -80,8 +81,8 @@ namespace fa
                 {
                     out << "From " << itt->first << " to " << itv->first << " with values:  ";
                     for (auto itc = (itv->second).begin(); itc != (itv->second).end(); itc++)
-                        cout << *itc << " ";
-                    cout << endl;
+                        out << *itc << " ";
+                    out << endl;
                 }
 
             out << "Initial state: " << fa.initialState << endl;
@@ -122,7 +123,7 @@ namespace fa
         void addState(StateType newState) { states.insert(newState); }
         void setStates(set<StateType> states) { states = states; }
 
-        map<StateType, set<pair<StateType, TransitionType>>> getTransitiions() const { return transitions; }
+        map<StateType, map<StateType, set<TransitionType>>> getTransitiions() const { return transitions; }
         void addTransition(StateType startState, StateType endState, TransitionType character)
         {
             if (states.find(startState) == states.end())
@@ -144,7 +145,7 @@ namespace fa
                     transitions[startState][endState].insert(character);
             }
         }
-        void setTransitions(map<StateType, set<pair<StateType, TransitionType>>> transitions) { transitions = transitions; }
+        void setTransitions(map<StateType, map<StateType, set<TransitionType>>> transitions) { transitions = transitions; }
 
         StateType getInitialState() const { return initialState; }
         void setInitialState(StateType initialState) { initialState = initialState; }
@@ -162,6 +163,133 @@ namespace fa
 
     class DFA : public FA<int, char>
     {
+    private:
+        void removeUnreachableStates()
+        {
+            // remove unreachable states
+            // alternatively, consider DFA as NFA and call turnDeterministic
+            set<int> reachableStates{initialState};
+            set<int> newStates{initialState};
+
+            while (!newStates.empty())
+            {
+                set<int> tmp;
+                for (auto it = newStates.begin(); it != newStates.end(); it++)
+                    for (auto itt = transitions[*it].begin(); itt != transitions[*it].end(); itt++)
+                        tmp.insert(itt->first);
+
+                newStates.clear();
+                set_difference(tmp.begin(), tmp.end(), reachableStates.begin(), reachableStates.end(),
+                               inserter(newStates, newStates.end()));
+
+                reachableStates.insert(newStates.begin(), newStates.end());
+            }
+
+            // delete all unreachable states and their transitions
+            set<int> unreachableStates;
+            for (auto it = states.begin(); it != states.end(); it++)
+                if (reachableStates.find(*it) == reachableStates.end())
+                    unreachableStates.insert(*it);
+
+            map<int, map<int, set<char>>> transitionsTmp = transitions;
+            for (auto itt = transitions.begin(); itt != transitions.end(); itt++)
+            {
+                if (unreachableStates.find(itt->first) != unreachableStates.end())
+                {
+                    transitionsTmp.erase(itt->first);
+                    continue;
+                }
+                for (auto it = (itt->second).begin(); it != (itt->second).end(); it++)
+                    if (unreachableStates.find(it->first) != unreachableStates.end())
+                        transitionsTmp[itt->first].erase(it->first);
+            }
+
+            states = reachableStates;
+            transitions = transitionsTmp;
+        }
+        void removeIndistinguishableStates()
+        {
+            // this is an implementation of Hopcroft's algorithm
+            set<int> nonFinalStates;
+            set_difference(states.begin(), states.end(), finalStates.begin(), finalStates.end(),
+                           inserter(nonFinalStates, nonFinalStates.end()));
+
+            set<set<int>> partitions{finalStates, nonFinalStates};
+            set<set<int>> setQueue{finalStates, nonFinalStates};
+
+            while (!setQueue.empty())
+            {
+                set<int> currentSet = *setQueue.begin();
+                setQueue.erase(setQueue.begin());
+
+                map<char, set<int>> inboundTransitions;
+                for (auto itt = transitions.begin(); itt != transitions.end(); itt++)
+                    for (auto it = (itt->second).begin(); it != (itt->second).end(); it++)
+                        if (currentSet.find(it->first) != currentSet.end())
+                            for (auto itc = (it->second).begin(); itc != (it->second).end(); itc++)
+                            {
+                                if (inboundTransitions.find(*itc) == inboundTransitions.end())
+                                    inboundTransitions.insert(pair<char, set<int>>(*itc, set<int>{itt->first}));
+                                else
+                                    inboundTransitions[*itc].insert(itt->first);
+                            }
+
+                set<set<int>> partitionsTmp = partitions;
+                for (auto itt = inboundTransitions.begin(); itt != inboundTransitions.end(); itt++)
+                    for (auto itp = partitions.begin(); itp != partitions.end(); itp++)
+                    {
+                        set<int> intersection, difference;
+                        set_intersection((itt->second).begin(), (itt->second).end(), (*itp).begin(), (*itp).end(),
+                                         inserter(intersection, intersection.end()));
+                        set_difference((*itp).begin(), (*itp).end(), (itt->second).begin(), (itt->second).end(),
+                                       inserter(difference, difference.end()));
+
+                        if (intersection.empty() || difference.empty())
+                            continue;
+
+                        partitionsTmp.erase(*itp);
+                        partitionsTmp.insert(intersection);
+                        partitionsTmp.insert(difference);
+
+                        if (setQueue.find(*itp) != setQueue.end())
+                        {
+                            setQueue.erase(*itp);
+                            setQueue.insert(intersection);
+                            setQueue.insert(difference);
+                        }
+                        else
+                        {
+                            if (intersection.size() <= difference.size())
+                                setQueue.insert(intersection);
+                            else
+                                setQueue.insert(difference);
+                        }
+                    }
+                partitions = partitionsTmp;
+            }
+
+            map<int, int> stateEncoding;
+            int encodingIndex = 0;
+            for (auto itp = partitions.begin(); itp != partitions.end(); itp++)
+            {
+                for (auto it = (*itp).begin(); it != (*itp).end(); it++)
+                    stateEncoding.insert(pair<int, int>(*it, encodingIndex));
+                encodingIndex++;
+            }
+
+            DFA dfa;
+            dfa.setInitialState(stateEncoding[initialState]);
+            for (auto it = finalStates.begin(); it != finalStates.end(); it++)
+                dfa.addFinalState(stateEncoding[*it]);
+            for (int stateIndex = 0; stateIndex < encodingIndex; stateIndex++)
+                dfa.addState(stateIndex);
+            for (auto itt = transitions.begin(); itt != transitions.end(); itt++)
+                for (auto its = (itt->second).begin(); its != (itt->second).end(); its++)
+                    for (auto itc = (its->second).begin(); itc != (its->second).end(); itc++)
+                        dfa.addTransition(stateEncoding[itt->first], stateEncoding[its->first], *itc);
+            *this = dfa;
+        }
+
     public:
         DFA(int initialState = 0, char lambdaCharacter = '0', string lambdaString = "-")
             : FA<int, char>(initialState, lambdaCharacter, vector<char>(lambdaString.begin(), lambdaString.end())) {}
@@ -171,15 +299,20 @@ namespace fa
             vector<char> strVector(str.begin(), str.end());
             return FA<int, char>::evaluateString(strVector);
         }
-
         vector<int> evaluateStringWithPath(const string &str) const
         {
             vector<char> strVector(str.begin(), str.end());
             return FA<int, char>::evaluateStringWithPath(strVector);
         }
+
+        void minimize()
+        {
+            this->removeUnreachableStates();
+            this->removeIndistinguishableStates();
+        }
     };
 
-    class LambdaNFA : public FA<int, char>
+    class NFA : public FA<int, char>
     {
     protected:
         void DFS(bool &ok, int depth, const vector<char> &word, int currentState, vector<vector<pair<int, char>>> &solutionPaths,
@@ -214,7 +347,7 @@ namespace fa
         }
 
     public:
-        LambdaNFA(int initialState = 0, char lambdaCharacter = '0', string lambdaString = "-")
+        NFA(int initialState = 0, char lambdaCharacter = '0', string lambdaString = "-")
             : FA<int, char>(initialState, lambdaCharacter, vector<char>(lambdaString.begin(), lambdaString.end())) {}
 
         bool evaluateString(const string &str) const
@@ -263,6 +396,8 @@ namespace fa
         {
             DFA automata;
 
+            // build nondeterministic finite automata transition table
+            // state, character -> state set
             map<int, map<char, set<int>>> nondeterministicTransitionTable;
             for (auto itt = transitions.begin(); itt != transitions.end(); itt++)
             {
@@ -275,22 +410,26 @@ namespace fa
                             nondeterministicTransitionTable[itt->first][*itc].insert(it->first);
             }
 
+            // build deterministic finite automata transition table
+            // state, character -> state set
             map<set<int>, map<char, set<int>>> deterministicTransitionTable;
 
+            // powerset state queue
             queue<set<int>> stateQueue;
             stateQueue.push(set<int>{initialState});
 
+            // encode set state as integer in final automata
             map<set<int>, int> generatedStateEncoding;
-            int encodingIndex = 0;
+            generatedStateEncoding.insert(pair<set<int>, int>(set<int>{initialState}, 0));
+            automata.addState(0);
+            int encodingIndex = 1;
 
             while (!stateQueue.empty())
             {
                 set<int> currentState = stateQueue.front();
-                generatedStateEncoding.insert(pair<set<int>, int>(currentState, encodingIndex));
-                automata.addState(encodingIndex);
-                encodingIndex++;
                 stateQueue.pop();
 
+                // generate transitions for current state set
                 map<char, set<int>> currentStateTransitions;
                 for (auto its = currentState.begin(); its != currentState.end(); its++)
                     for (auto it = nondeterministicTransitionTable[*its].begin(); it != nondeterministicTransitionTable[*its].end(); it++)
@@ -299,17 +438,28 @@ namespace fa
                         else
                             currentStateTransitions[it->first].insert((it->second).begin(), (it->second).end());
 
+                // new set states that haven't been encoded haven't been visited
                 for (auto it = currentStateTransitions.begin(); it != currentStateTransitions.end(); it++)
                     if (generatedStateEncoding.find(it->second) == generatedStateEncoding.end())
+                    {
                         stateQueue.push(it->second);
+                        generatedStateEncoding.insert(pair<set<int>, int>(it->second, encodingIndex));
+                        automata.addState(encodingIndex);
+                        encodingIndex++;
+                    }
 
                 deterministicTransitionTable.insert(pair<set<int>, map<char, set<int>>>(currentState, currentStateTransitions));
             }
 
+            // add initial state
             automata.setInitialState(generatedStateEncoding[set<int>{initialState}]);
+
+            // add transitions after encoding
             for (auto itt = deterministicTransitionTable.begin(); itt != deterministicTransitionTable.end(); itt++)
                 for (auto it = (itt->second).begin(); it != (itt->second).end(); it++)
                     automata.addTransition(generatedStateEncoding[itt->first], generatedStateEncoding[it->second], it->first);
+
+            // add final states after encoding
             for (auto ite = generatedStateEncoding.begin(); ite != generatedStateEncoding.end(); ite++)
                 for (auto itf = finalStates.begin(); itf != finalStates.end(); itf++)
                     if ((ite->first).find(*itf) != (ite->first).end())
