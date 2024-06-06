@@ -1,6 +1,6 @@
 #include <fstream>
 #include <iostream>
-#include "fa.h"
+#include "fa.hpp"
 
 using namespace std;
 using namespace fa;

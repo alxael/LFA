@@ -1,6 +1,6 @@
 #include <fstream>
 #include <iostream>
-#include "fa.h"
+#include "fa.hpp"
 
 using namespace std;
 using namespace fa;
@@ -13,7 +13,7 @@ int main()
     ifstream din("tests/4.txt");
     din >> dfa;
 
-    ifstream nin("tests/1.txt");
+    ifstream nin("tests/cnfa.txt");
     nin >> nfa;
     DFA converted = nfa.turnDeterministic();
 
